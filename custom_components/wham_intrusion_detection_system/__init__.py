@@ -11,14 +11,18 @@ DOMAIN = "wham_intrusion_detection_system"
 
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_ARTISTS = "artists"
+CONF_TTS_ENABLED = "tts_enabled"
+CONF_TTS_ENTITY = "tts_entity"
+CONF_TTS_LANGUAGE = "tts_language"
+CONF_TTS_MESSAGE = "tts_message"
 
-_LOGGER = logging.getLogger(__name__)
-
-TTS_ENTITY = "tts.home_assistant_cloud"
-ANNOUNCEMENT = (
+DEFAULT_TTS_LANGUAGE = "en-GB"
+DEFAULT_TTS_MESSAGE = (
     "Attention! Unauthorized music detected. "
     "Wham protection activated!"
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -32,8 +36,10 @@ async def async_setup_entry(
 ) -> bool:
     """Set up the integration."""
 
-    players = entry.options.get(CONF_MEDIA_PLAYERS, [])
-    artists = entry.options.get(CONF_ARTISTS, ["Wham!"])
+    options = entry.options
+
+    players = options.get(CONF_MEDIA_PLAYERS, [])
+    artists = options.get(CONF_ARTISTS, ["Wham!"])
 
     if isinstance(artists, str):
         artists = artists.splitlines()
@@ -43,6 +49,15 @@ async def async_setup_entry(
         for artist in artists
         if artist.strip()
     ]
+
+    tts_enabled = options.get(CONF_TTS_ENABLED, True)
+    tts_entity = options.get(CONF_TTS_ENTITY)
+    tts_language = options.get(
+        CONF_TTS_LANGUAGE, DEFAULT_TTS_LANGUAGE
+    )
+    tts_message = options.get(
+        CONF_TTS_MESSAGE, DEFAULT_TTS_MESSAGE
+    )
 
     muted_by_integration = set()
     processing = set()
@@ -85,24 +100,33 @@ async def async_setup_entry(
                     entity_id,
                 )
 
-                try:
-                    await hass.services.async_call(
-                        "tts",
-                        "speak",
-                        {
-                            "entity_id": TTS_ENTITY,
-                            "media_player_entity_id": entity_id,
-                            "message": ANNOUNCEMENT,
-                            "language": "en-GB",
-                        },
-                        blocking=True,
-                    )
-                except Exception:
-                    _LOGGER.exception(
-                        "Could not announce WHAM filter on %s",
-                        entity_id,
+                # Announce through the same media player if enabled.
+                if tts_enabled and tts_entity:
+                    try:
+                        await hass.services.async_call(
+                            "tts",
+                            "speak",
+                            {
+                                "entity_id": tts_entity,
+                                "media_player_entity_id": entity_id,
+                                "message": tts_message,
+                                "language": tts_language,
+                            },
+                            blocking=True,
+                        )
+                    except Exception:
+                        _LOGGER.exception(
+                            "TTS announcement failed on %s. "
+                            "The player will still be muted.",
+                            entity_id,
+                        )
+                elif tts_enabled:
+                    _LOGGER.warning(
+                        "TTS is enabled but no TTS entity is selected. "
+                        "Muting without announcement."
                     )
 
+                # Mute after the announcement attempt.
                 await hass.services.async_call(
                     "media_player",
                     "volume_mute",
@@ -190,9 +214,11 @@ async def async_setup_entry(
     )
 
     _LOGGER.info(
-        "WHAM Intrusion Detection System started with %s players and %s artists.",
+        "WHAM Intrusion Detection System started with %s players, "
+        "%s artists and TTS %s.",
         len(players),
         len(artists),
+        "enabled" if tts_enabled else "disabled",
     )
 
     return True
