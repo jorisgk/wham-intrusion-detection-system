@@ -38,22 +38,6 @@ After installation, add the integration from **Settings → Devices & services �
 3. Restart Home Assistant.
 4. Add **WHAM Intrusion Detection System** from **Settings → Devices & services → Add integration**.
 
-The resulting directory should look like this:
-
-```text
-config/
-└── custom_components/
-    └── wham_intrusion_detection_system/
-        ├── __init__.py
-        ├── manifest.json
-        ├── config_flow.py
-        ├── strings.json
-        ├── translations/
-        ├── switch.py
-        ├── text.py
-        └── binary_sensor.py
-```
-
 ## Configuration
 
 When adding the integration, give it a name. Then open the integration's **Configure** option to set:
@@ -156,7 +140,3 @@ Turning protection off clears the detection indication and attempts to unmute pl
 
 - [Report a bug or request a feature](https://github.com/jorisgk/wham-intrusion-detection-system/issues)
 - [Source code](https://github.com/jorisgk/wham-intrusion-detection-system)
-
-## License
-
-See the [LICENSE](LICENSE) file.
