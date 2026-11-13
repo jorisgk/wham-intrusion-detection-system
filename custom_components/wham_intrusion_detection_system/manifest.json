@@ -7,5 +7,5 @@
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/jorisgk/wham-intrusion-detection-system/new/main/custom_components/wham_intrusion_detection_system/issues",
-  "version": "1.0.0"
+  "version": "0.1.0"
 }
