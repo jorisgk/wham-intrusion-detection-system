@@ -1,12 +1,12 @@
 {
   "domain": "wham_intrusion_detection_system",
   "name": "WHAM Intrusion Detection System",
+  "categories": ["media_entertainment"],
   "codeowners": ["@jorisgk"],
   "config_flow": true,
   "documentation": "https://github.com/jorisgk/wham-intrusion-detection-system",
   "integration_type": "service",
-  "iot_class": "calculated",
-  "categories": ["media"],
   "issue_tracker": "https://github.com/jorisgk/wham-intrusion-detection-system/issues",
-  "version": "0.1.1"
+  "iot_class": "calculated",
+  "version": "0.1.0"
 }
