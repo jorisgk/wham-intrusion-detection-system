@@ -1,235 +1,101 @@
 
-"""WHAM Intrusion Detection System."""
+"""Config flow for WHAM Intrusion Detection System."""
 
-import logging
+import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant import config_entries
+from homeassistant.const import CONF_NAME
+from homeassistant.helpers import selector
 
-DOMAIN = "wham_intrusion_detection_system"
+from . import DOMAIN
 
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_ARTISTS = "artists"
 
-_LOGGER = logging.getLogger(__name__)
 
-TTS_ENTITY = "tts.piper"
-ANNOUNCEMENT = "WHAM filter active"
+class WhamIntrusionDetectionConfigFlow(
+    config_entries.ConfigFlow,
+    domain=DOMAIN,
+):
+    """Handle the config flow."""
 
+    VERSION = 1
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the integration."""
-    return True
-
-
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-) -> bool:
-    """Set up the integration."""
-
-    players = entry.options.get(CONF_MEDIA_PLAYERS, [])
-    artists = entry.options.get(CONF_ARTISTS, ["Wham!"])
-
-    if isinstance(artists, str):
-        artists = artists.splitlines()
-
-    artists = [
-        artist.strip().casefold()
-        for artist in artists
-        if artist.strip()
-    ]
-
-    muted_by_integration = set()
-    processing = set()
-
-    def is_filtered(state) -> bool:
-        """Check whether the current track matches an artist."""
-
-        if state is None:
-            return False
-
-        media_title = (
-            state.attributes.get("media_title", "") or ""
-        ).casefold()
-
-        media_artist = (
-            state.attributes.get("media_artist", "") or ""
-        ).casefold()
-
-        searchable = f"{media_title} {media_artist}"
-
-        return any(artist in searchable for artist in artists)
-
-    async def process_player(entity_id: str, state) -> None:
-        """Check a player and apply the WHAM filter."""
-
-        if entity_id in processing or state is None:
-            return
-
-        detected = is_filtered(state)
-
-        if detected and entity_id not in muted_by_integration:
-            # Do not take over a mute that was already active.
-            if state.attributes.get("is_volume_muted", False):
-                return
-
-            processing.add(entity_id)
-
-            try:
-                _LOGGER.warning(
-                    "WHAM filter detected a match on %s",
-                    entity_id,
-                )
-
-                # Announce through the same media player.
-                try:
-                    await hass.services.async_call(
-                        "tts",
-                        "speak",
-                        {
-                            "entity_id": TTS_ENTITY,
-                            "media_player_entity_id": entity_id,
-                            "message": ANNOUNCEMENT,
-                        },
-                        blocking=True,
-                    )
-                except Exception:
-                    _LOGGER.exception(
-                        "Could not announce WHAM filter on %s",
-                        entity_id,
-                    )
-
-                # Mute after the announcement.
-                await hass.services.async_call(
-                    "media_player",
-                    "volume_mute",
-                    {
-                        "entity_id": entity_id,
-                        "is_volume_muted": True,
-                    },
-                    blocking=True,
-                )
-
-                muted_by_integration.add(entity_id)
-
-                _LOGGER.info(
-                    "WHAM filter muted %s",
-                    entity_id,
-                )
-
-            except Exception:
-                _LOGGER.exception(
-                    "Could not activate WHAM filter on %s",
-                    entity_id,
-                )
-
-            finally:
-                processing.discard(entity_id)
-
-        elif not detected and entity_id in muted_by_integration:
-            processing.add(entity_id)
-
-            try:
-                await hass.services.async_call(
-                    "media_player",
-                    "volume_mute",
-                    {
-                        "entity_id": entity_id,
-                        "is_volume_muted": False,
-                    },
-                    blocking=True,
-                )
-
-                muted_by_integration.discard(entity_id)
-
-                _LOGGER.info(
-                    "WHAM filter deactivated on %s",
-                    entity_id,
-                )
-
-            except Exception:
-                _LOGGER.exception(
-                    "Could not deactivate WHAM filter on %s",
-                    entity_id,
-                )
-
-            finally:
-                processing.discard(entity_id)
-
-    async def handle_state_change(event: Event) -> None:
-        """Handle media player state changes."""
-
-        entity_id = event.data.get("entity_id")
-        new_state = event.data.get("new_state")
-
-        if entity_id:
-            await process_player(entity_id, new_state)
-
-    if players:
-        entry.async_on_unload(
-            async_track_state_change_event(
-                hass,
-                players,
-                handle_state_change,
+    async def async_step_user(self, user_input=None):
+        """Handle initial setup."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title=user_input[CONF_NAME],
+                data=user_input,
             )
+
+        schema = vol.Schema({
+            vol.Required(
+                CONF_NAME,
+                default="WHAM Intrusion Detection System",
+            ): str,
+        })
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
         )
 
-        # Check the selected players immediately after setup.
-        for entity_id in players:
-            await process_player(
-                entity_id,
-                hass.states.get(entity_id),
-            )
-
-    entry.runtime_data = muted_by_integration
-
-    entry.async_on_unload(
-        entry.add_update_listener(async_reload_entry)
-    )
-
-    _LOGGER.info(
-        "WHAM Intrusion Detection System started with %s players and %s artists.",
-        len(players),
-        len(artists),
-    )
-
-    return True
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        """Create options flow."""
+        return WhamIntrusionDetectionOptionsFlow()
 
 
-async def async_unload_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-) -> bool:
-    """Unload the integration."""
+class WhamIntrusionDetectionOptionsFlow(
+    config_entries.OptionsFlow
+):
+    """Handle integration options."""
 
-    muted_players = getattr(entry, "runtime_data", set())
+    async def async_step_init(self, user_input=None):
+        """Manage options."""
 
-    for entity_id in list(muted_players):
-        try:
-            await hass.services.async_call(
-                "media_player",
-                "volume_mute",
-                {
-                    "entity_id": entity_id,
-                    "is_volume_muted": False,
+        if user_input is not None:
+            artists = [
+                artist.strip()
+                for artist in user_input[CONF_ARTISTS].splitlines()
+                if artist.strip()
+            ]
+
+            return self.async_create_entry(
+                title="",
+                data={
+                    CONF_MEDIA_PLAYERS: user_input[CONF_MEDIA_PLAYERS],
+                    CONF_ARTISTS: artists,
                 },
-                blocking=True,
-            )
-        except Exception:
-            _LOGGER.exception(
-                "Could not unmute %s during unload",
-                entity_id,
             )
 
-    return True
+        current_players = self.config_entry.options.get(
+            CONF_MEDIA_PLAYERS, []
+        )
+        current_artists = self.config_entry.options.get(
+            CONF_ARTISTS, ["Wham!"]
+        )
 
+        schema = vol.Schema({
+            vol.Optional(
+                CONF_MEDIA_PLAYERS,
+                default=current_players,
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="media_player",
+                    multiple=True,
+                )
+            ),
+            vol.Optional(
+                CONF_ARTISTS,
+                default="\n".join(current_artists),
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(multiline=True)
+            ),
+        })
 
-async def async_reload_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-) -> None:
-    """Reload the integration when options change."""
-
-    await hass.config_entries.async_reload(entry.entry_id)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+        )
