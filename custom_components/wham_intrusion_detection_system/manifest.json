@@ -1,7 +1,7 @@
 {
   "domain": "wham_intrusion_detection_system",
   "name": "WHAM Intrusion Detection System",
-  "codeowners": ["@JOUW_GITHUB_NAAM"],
+  "codeowners": ["@jorisgk"],
   "config_flow": true,
   "documentation": "https://github.com/jorisgk/wham-intrusion-detection-system/new/main/custom_components/wham_intrusion_detection_system",
   "integration_type": "service",
