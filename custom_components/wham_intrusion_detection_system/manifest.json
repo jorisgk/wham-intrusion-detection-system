@@ -6,7 +6,7 @@
   "documentation": "https://github.com/jorisgk/wham-intrusion-detection-system",
   "integration_type": "service",
   "iot_class": "calculated",
+  "categories": ["media"],
   "issue_tracker": "https://github.com/jorisgk/wham-intrusion-detection-system/issues",
   "version": "0.1.1"
-  "categories": ["media"],
 }
