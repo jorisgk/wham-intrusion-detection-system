@@ -140,3 +140,7 @@ Turning protection off clears the detection indication and attempts to unmute pl
 
 - [Report a bug or request a feature](https://github.com/jorisgk/wham-intrusion-detection-system/issues)
 - [Source code](https://github.com/jorisgk/wham-intrusion-detection-system)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
