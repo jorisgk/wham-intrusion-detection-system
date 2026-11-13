@@ -4,15 +4,18 @@
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, Event
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.event import async_track_state_change_event
 
-from . import DOMAIN
-
-_LOGGER = logging.getLogger(__name__)
+DOMAIN = "wham_intrusion_detection_system"
 
 CONF_MEDIA_PLAYERS = "media_players"
 CONF_ARTISTS = "artists"
+
+_LOGGER = logging.getLogger(__name__)
+
+TTS_ENTITY = "tts.piper"
+ANNOUNCEMENT = "WHAM filter active"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -24,33 +27,78 @@ async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
 ) -> bool:
-    """Set up the integration from a config entry."""
+    """Set up the integration."""
 
     players = entry.options.get(CONF_MEDIA_PLAYERS, [])
     artists = entry.options.get(CONF_ARTISTS, ["Wham!"])
 
-    artists = [artist.casefold() for artist in artists if artist.strip()]
+    if isinstance(artists, str):
+        artists = artists.splitlines()
+
+    artists = [
+        artist.strip().casefold()
+        for artist in artists
+        if artist.strip()
+    ]
 
     muted_by_integration = set()
+    processing = set()
 
-    async def process_player(entity_id, state):
-        """Check the media title and control mute."""
+    def is_filtered(state) -> bool:
+        """Check whether the current track matches an artist."""
 
         if state is None:
+            return False
+
+        media_title = (
+            state.attributes.get("media_title", "") or ""
+        ).casefold()
+
+        media_artist = (
+            state.attributes.get("media_artist", "") or ""
+        ).casefold()
+
+        searchable = f"{media_title} {media_artist}"
+
+        return any(artist in searchable for artist in artists)
+
+    async def process_player(entity_id: str, state) -> None:
+        """Check a player and apply the WHAM filter."""
+
+        if entity_id in processing or state is None:
             return
 
-        media_title = state.attributes.get("media_title", "") or ""
-        title = media_title.casefold()
-
-        detected = any(artist in title for artist in artists)
+        detected = is_filtered(state)
 
         if detected and entity_id not in muted_by_integration:
-            already_muted = state.attributes.get("is_volume_muted", False)
-
-            if already_muted:
+            if state.attributes.get("is_volume_muted", False):
                 return
 
+            processing.add(entity_id)
+
             try:
+                _LOGGER.warning(
+                    "WHAM filter detected a match on %s",
+                    entity_id,
+                )
+
+                try:
+                    await hass.services.async_call(
+                        "tts",
+                        "speak",
+                        {
+                            "entity_id": TTS_ENTITY,
+                            "media_player_entity_id": entity_id,
+                            "message": ANNOUNCEMENT,
+                        },
+                        blocking=True,
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "Could not announce WHAM filter on %s",
+                        entity_id,
+                    )
+
                 await hass.services.async_call(
                     "media_player",
                     "volume_mute",
@@ -62,19 +110,24 @@ async def async_setup_entry(
                 )
 
                 muted_by_integration.add(entity_id)
-                _LOGGER.warning(
-                    "WHAM filter activated for %s. Track: %s",
+
+                _LOGGER.info(
+                    "WHAM filter muted %s",
                     entity_id,
-                    media_title,
                 )
 
             except Exception:
                 _LOGGER.exception(
-                    "Could not mute %s",
+                    "Could not activate WHAM filter on %s",
                     entity_id,
                 )
 
+            finally:
+                processing.discard(entity_id)
+
         elif not detected and entity_id in muted_by_integration:
+            processing.add(entity_id)
+
             try:
                 await hass.services.async_call(
                     "media_player",
@@ -86,25 +139,30 @@ async def async_setup_entry(
                     blocking=True,
                 )
 
-                muted_by_integration.remove(entity_id)
+                muted_by_integration.discard(entity_id)
+
                 _LOGGER.info(
-                    "WHAM filter deactivated for %s",
+                    "WHAM filter deactivated on %s",
                     entity_id,
                 )
 
             except Exception:
                 _LOGGER.exception(
-                    "Could not unmute %s",
+                    "Could not deactivate WHAM filter on %s",
                     entity_id,
                 )
 
-    async def handle_state_change(event: Event):
+            finally:
+                processing.discard(entity_id)
+
+    async def handle_state_change(event: Event) -> None:
         """Handle media player state changes."""
 
         entity_id = event.data.get("entity_id")
         new_state = event.data.get("new_state")
 
-        await process_player(entity_id, new_state)
+        if entity_id:
+            await process_player(entity_id, new_state)
 
     if players:
         entry.async_on_unload(
@@ -122,11 +180,16 @@ async def async_setup_entry(
             )
 
     entry.runtime_data = muted_by_integration
+
     entry.async_on_unload(
         entry.add_update_listener(async_reload_entry)
     )
 
-    _LOGGER.info("WHAM Intrusion Detection System started.")
+    _LOGGER.info(
+        "WHAM Intrusion Detection System started with %s players and %s artists.",
+        len(players),
+        len(artists),
+    )
 
     return True
 
@@ -140,15 +203,21 @@ async def async_unload_entry(
     muted_players = getattr(entry, "runtime_data", set())
 
     for entity_id in list(muted_players):
-        await hass.services.async_call(
-            "media_player",
-            "volume_mute",
-            {
-                "entity_id": entity_id,
-                "is_volume_muted": False,
-            },
-            blocking=True,
-        )
+        try:
+            await hass.services.async_call(
+                "media_player",
+                "volume_mute",
+                {
+                    "entity_id": entity_id,
+                    "is_volume_muted": False,
+                },
+                blocking=True,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Could not unmute %s during unload",
+                entity_id,
+            )
 
     return True
 
