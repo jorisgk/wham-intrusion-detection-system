@@ -1,0 +1,11 @@
+{
+  "domain": "wham_intrusion_detection_system",
+  "name": "WHAM Intrusion Detection System",
+  "codeowners": ["@JOUW_GITHUB_NAAM"],
+  "config_flow": true,
+  "documentation": "https://github.com/jorisgk/wham-intrusion-detection-system/new/main/custom_components/wham_intrusion_detection_system",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/jorisgk/wham-intrusion-detection-system/new/main/custom_components/wham_intrusion_detection_system/issues",
+  "version": "1.0.0"
+}
