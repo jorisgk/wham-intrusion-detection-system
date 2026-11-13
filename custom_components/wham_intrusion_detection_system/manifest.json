@@ -7,8 +7,8 @@
   "config_flow": true,
   "documentation": "https://github.com/jorisgk/wham-intrusion-detection-system",
   "integration_type": "service",
-  "issue_tracker": "https://github.com/jorisgk/wham-intrusion-detection-system/issues",
   "iot_class": "calculated",
+  "issue_tracker": "https://github.com/jorisgk/wham-intrusion-detection-system/issues",
   "version": "0.1.0"
 }
 
