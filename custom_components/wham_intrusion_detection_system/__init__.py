@@ -5,8 +5,11 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers import config_validation as cv
 
 DOMAIN = "wham_intrusion_detection_system"
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS = ["switch", "text", "binary_sensor"]
 
