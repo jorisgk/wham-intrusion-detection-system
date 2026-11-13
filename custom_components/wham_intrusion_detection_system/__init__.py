@@ -14,8 +14,11 @@ CONF_ARTISTS = "artists"
 
 _LOGGER = logging.getLogger(__name__)
 
-TTS_ENTITY = "tts.piper"
-ANNOUNCEMENT = "WHAM filter active"
+TTS_ENTITY = "tts.home_assistant_cloud"
+ANNOUNCEMENT = (
+    "Attention! Unauthorized music detected. "
+    "Wham protection activated!"
+)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -90,6 +93,7 @@ async def async_setup_entry(
                             "entity_id": TTS_ENTITY,
                             "media_player_entity_id": entity_id,
                             "message": ANNOUNCEMENT,
+                            "language": "en-GB",
                         },
                         blocking=True,
                     )
